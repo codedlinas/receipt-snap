@@ -1,15 +1,24 @@
 name: Supabase Deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'supabase/**'
+  workflow_dispatch:  # Manual trigger only - requires secrets to be configured
+    inputs:
+      deploy_functions:
+        description: 'Deploy Edge Functions'
+        required: true
+        default: true
+        type: boolean
+      deploy_migrations:
+        description: 'Deploy Database Migrations'
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   deploy-migrations:
     name: Deploy Migrations
     runs-on: ubuntu-latest
+    if: ${{ inputs.deploy_migrations }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,6 +42,7 @@ jobs:
     name: Deploy Edge Functions
     needs: deploy-migrations
     runs-on: ubuntu-latest
+    if: ${{ always() && inputs.deploy_functions }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

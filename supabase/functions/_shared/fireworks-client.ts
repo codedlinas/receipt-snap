@@ -35,7 +35,12 @@ Rules:
 export async function extractSubscriptionData(
   imageBase64: string,
   mimeType: string = 'image/jpeg'
-): Promise<{ extraction: ExtractionResult | null; error: string | null }> {
+): Promise<{ 
+  extraction: ExtractionResult | null; 
+  rawResponse: string | null;
+  tokensUsed: number | null;
+  error: string | null;
+}> {
   try {
     const response = await fetch(FIREWORKS_API_URL, {
       method: 'POST',
@@ -72,14 +77,25 @@ export async function extractSubscriptionData(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Fireworks API error:', response.status, errorText.substring(0, 200));
-      return { extraction: null, error: `Fireworks API error: ${response.status}` };
+      return { 
+        extraction: null, 
+        rawResponse: errorText.substring(0, 500),
+        tokensUsed: null,
+        error: `Fireworks API error: ${response.status}` 
+      };
     }
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
+    const tokensUsed = result.usage?.total_tokens || null;
 
     if (!content) {
-      return { extraction: null, error: 'No content in LLM response' };
+      return { 
+        extraction: null, 
+        rawResponse: null,
+        tokensUsed,
+        error: 'No content in LLM response' 
+      };
     }
 
     // Parse JSON from response
@@ -113,9 +129,19 @@ export async function extractSubscriptionData(
       extraction.confidence_score = Math.min(extraction.confidence_score || 0, 0.3);
     }
 
-    return { extraction, error: null };
+    return { 
+      extraction, 
+      rawResponse: content,
+      tokensUsed,
+      error: null 
+    };
   } catch (error) {
     console.error('extractSubscriptionData error:', error);
-    return { extraction: null, error: error.message };
+    return { 
+      extraction: null, 
+      rawResponse: null,
+      tokensUsed: null,
+      error: error.message 
+    };
   }
 }

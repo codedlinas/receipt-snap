@@ -6,6 +6,9 @@ import { getServiceClient, getAuthenticatedUser } from '../_shared/supabase-clie
 import { extractSubscriptionData } from '../_shared/fireworks-client.ts';
 import { ProcessReceiptRequest, CORS_HEADERS } from '../_shared/types.ts';
 
+// Model identifier for logging
+const LLM_MODEL = 'accounts/fireworks/models/qwen3-vl-30b-a3b-instruct';
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -86,14 +89,47 @@ serve(async (req: Request) => {
       })
       .eq('id', receipt.id);
 
+    // Log user message (image upload) for debugging
+    await supabase.from('messages').insert({
+      user_id: user.id,
+      receipt_id: receipt.id,
+      sender: 'user',
+      message_type: 'image_upload',
+      content: {
+        filename: filename || 'receipt.jpg',
+        mime_type: mime_type || 'image/jpeg',
+        file_size_bytes: imageBuffer.length,
+        storage_path: storagePath,
+        prompt: 'Extract subscription details from this receipt/screenshot:',
+      },
+    });
+
     // 3. Call Fireworks.ai Vision LLM for extraction
-    const { extraction, error: extractionError } = await extractSubscriptionData(
+    const llmStartTime = Date.now();
+    const { extraction, rawResponse, tokensUsed, error: extractionError } = await extractSubscriptionData(
       image_base64,
       mime_type || 'image/jpeg'
     );
+    const llmLatencyMs = Date.now() - llmStartTime;
 
     if (extractionError || !extraction) {
       console.error('Extraction error:', extractionError);
+      
+      // Log assistant error message for debugging
+      await supabase.from('messages').insert({
+        user_id: user.id,
+        receipt_id: receipt.id,
+        sender: 'assistant',
+        message_type: 'error',
+        content: {
+          error: extractionError || 'Extraction failed',
+          raw_response: rawResponse,
+        },
+        model_used: LLM_MODEL,
+        tokens_used: tokensUsed,
+        latency_ms: llmLatencyMs,
+      });
+
       await supabase
         .from('receipts')
         .update({
@@ -112,6 +148,21 @@ serve(async (req: Request) => {
         { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Log successful assistant response for debugging
+    await supabase.from('messages').insert({
+      user_id: user.id,
+      receipt_id: receipt.id,
+      sender: 'assistant',
+      message_type: 'extraction_response',
+      content: {
+        raw_response: rawResponse,
+        parsed_extraction: extraction,
+      },
+      model_used: LLM_MODEL,
+      tokens_used: tokensUsed,
+      latency_ms: llmLatencyMs,
+    });
 
     // 4. Update receipt with extraction result
     await supabase
