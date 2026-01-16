@@ -1,7 +1,9 @@
 name: Supabase Deploy
 
+# Manual deployment - requires SUPABASE_ACCESS_TOKEN secret
+# To get your access token: https://supabase.com/dashboard/account/tokens
 on:
-  workflow_dispatch:  # Manual trigger only - requires secrets to be configured
+  workflow_dispatch:
     inputs:
       deploy_functions:
         description: 'Deploy Edge Functions'

@@ -1,9 +1,10 @@
 name: Flutter CI
 
-# Disabled for now - requires Flutter version alignment and Android embedding v2 migration
-# To re-enable, change workflow_dispatch back to push/pull_request triggers
 on:
-  workflow_dispatch:  # Manual trigger only
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
 
 jobs:
   analyze-and-test:
@@ -16,7 +17,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.35.7'
           channel: 'stable'
           cache: true
 
@@ -24,18 +25,12 @@ jobs:
         run: flutter pub get
 
       - name: Analyze code
-        run: flutter analyze || true  # Don't fail on warnings
-        continue-on-error: true
+        run: flutter analyze
+        continue-on-error: true  # Don't fail the build on analysis warnings
 
       - name: Run tests
-        run: flutter test --coverage || true  # Continue even if some tests fail
-        continue-on-error: true
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: coverage/lcov.info
-          fail_ci_if_error: false
+        run: flutter test
+        continue-on-error: true  # Don't fail the build on test failures
 
   build-android:
     name: Build Android
@@ -55,7 +50,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.35.7'
           channel: 'stable'
           cache: true
 
@@ -72,16 +67,6 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
-      - name: Build App Bundle
-        run: flutter build appbundle --release
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-release-aab
-          path: build/app/outputs/bundle/release/app-release.aab
-          retention-days: 14
-
   build-ios:
     name: Build iOS
     needs: analyze-and-test
@@ -94,7 +79,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.35.7'
           channel: 'stable'
           cache: true
 
