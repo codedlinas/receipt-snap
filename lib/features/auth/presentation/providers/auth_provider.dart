@@ -35,9 +35,8 @@ final userProfileProvider = FutureProvider<UserProfile?>((ref) async {
 
 class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   final AuthRepository _repository;
-  final Ref _ref;
 
-  AuthNotifier(this._repository, this._ref) : super(const AsyncValue.data(null));
+  AuthNotifier(this._repository) : super(const AsyncValue.data(null));
 
   Future<bool> signInWithEmail(String email, String password) async {
     state = const AsyncValue.loading();
@@ -114,5 +113,5 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, AsyncValue<void>>((ref) {
   final repository = ref.watch(authRepositoryProvider);
-  return AuthNotifier(repository, ref);
+  return AuthNotifier(repository);
 });

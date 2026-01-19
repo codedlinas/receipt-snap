@@ -4,7 +4,14 @@ import { ExtractionResult } from './types.ts';
 const FIREWORKS_API_KEY = Deno.env.get('FIREWORKS_API_KEY')!;
 const FIREWORKS_API_URL = 'https://api.fireworks.ai/inference/v1/chat/completions';
 // Qwen3 VL 30B A3B Instruct - Vision model for receipt/subscription extraction
-const PRIMARY_MODEL = 'accounts/fireworks/models/qwen3-vl-30b-a3b-instruct';
+export const PRIMARY_MODEL = 'accounts/fireworks/models/qwen3-vl-30b-a3b-instruct';
+
+// Token usage breakdown from API response
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
 
 const EXTRACTION_PROMPT = `You are a receipt and subscription extraction assistant. Extract subscription/payment data from images and return ONLY valid JSON matching this schema:
 {
@@ -38,7 +45,8 @@ export async function extractSubscriptionData(
 ): Promise<{ 
   extraction: ExtractionResult | null; 
   rawResponse: string | null;
-  tokensUsed: number | null;
+  tokensUsed: number | null;      // Kept for backward compatibility
+  tokenUsage: TokenUsage | null;  // Full breakdown for cost calculation
   error: string | null;
 }> {
   try {
@@ -81,19 +89,28 @@ export async function extractSubscriptionData(
         extraction: null, 
         rawResponse: errorText.substring(0, 500),
         tokensUsed: null,
+        tokenUsage: null,
         error: `Fireworks API error: ${response.status}` 
       };
     }
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
+    
+    // Extract full token breakdown from API response
     const tokensUsed = result.usage?.total_tokens || null;
+    const tokenUsage: TokenUsage | null = result.usage ? {
+      inputTokens: result.usage.prompt_tokens || 0,
+      outputTokens: result.usage.completion_tokens || 0,
+      totalTokens: result.usage.total_tokens || 0,
+    } : null;
 
     if (!content) {
       return { 
         extraction: null, 
         rawResponse: null,
         tokensUsed,
+        tokenUsage,
         error: 'No content in LLM response' 
       };
     }
@@ -133,6 +150,7 @@ export async function extractSubscriptionData(
       extraction, 
       rawResponse: content,
       tokensUsed,
+      tokenUsage,
       error: null 
     };
   } catch (error) {
@@ -141,6 +159,7 @@ export async function extractSubscriptionData(
       extraction: null, 
       rawResponse: null,
       tokensUsed: null,
+      tokenUsage: null,
       error: error.message 
     };
   }

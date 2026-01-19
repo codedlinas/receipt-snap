@@ -5,6 +5,29 @@ All notable changes to Receipt Snap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-01-19
+
+### Added
+- **AI Cost Tracking**: New `ai_log` table to track LLM API costs and usage metrics
+  - Tracks input/output token counts separately
+  - Calculates costs per API call based on model pricing
+  - Records latency for performance monitoring
+  - Logs success/failure status with error messages
+- New `pricing.ts` utility for calculating Fireworks.ai model costs
+
+### Changed
+- Spending hero card now shows real calculated data only
+  - Removed hardcoded "12%" savings badge (placeholder)
+  - Removed hardcoded progress bar and budget values
+  - Added contextual subtitle "Based on your active subscriptions"
+- Cleaned up `AuthNotifier` class by removing unused `_ref` parameter
+
+### Technical
+- New migration: `20260119000000_add_ai_log_table.sql`
+- Updated `fireworks-client.ts` to return detailed `TokenUsage` breakdown
+- Updated `process-receipt/index.ts` to log costs to `ai_log` table
+- Code cleanup in `auth_provider.dart` and `subscription_list_screen.dart`
+
 ## [1.0.1] - 2026-01-16
 
 ### Added

@@ -3,11 +3,12 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getServiceClient, getAuthenticatedUser } from '../_shared/supabase-client.ts';
-import { extractSubscriptionData } from '../_shared/fireworks-client.ts';
+import { extractSubscriptionData, PRIMARY_MODEL } from '../_shared/fireworks-client.ts';
+import { calculateCost } from '../_shared/pricing.ts';
 import { ProcessReceiptRequest, CORS_HEADERS } from '../_shared/types.ts';
 
-// Model identifier for logging
-const LLM_MODEL = 'accounts/fireworks/models/qwen3-vl-30b-a3b-instruct';
+// Model identifier for logging (use exported constant from fireworks-client)
+const LLM_MODEL = PRIMARY_MODEL;
 
 serve(async (req: Request) => {
   // Handle CORS preflight
@@ -106,11 +107,38 @@ serve(async (req: Request) => {
 
     // 3. Call Fireworks.ai Vision LLM for extraction
     const llmStartTime = Date.now();
-    const { extraction, rawResponse, tokensUsed, error: extractionError } = await extractSubscriptionData(
+    const { extraction, rawResponse, tokensUsed, tokenUsage, error: extractionError } = await extractSubscriptionData(
       image_base64,
       mime_type || 'image/jpeg'
     );
     const llmLatencyMs = Date.now() - llmStartTime;
+
+    // Log to ai_log for cost tracking (wrapped in try-catch to not break main flow)
+    try {
+      if (tokenUsage) {
+        const costs = calculateCost(LLM_MODEL, tokenUsage.inputTokens, tokenUsage.outputTokens);
+        await supabase.from('ai_log').insert({
+          user_id: user.id,
+          receipt_id: receipt.id,
+          model_name: LLM_MODEL,
+          input_tokens: tokenUsage.inputTokens,
+          output_tokens: tokenUsage.outputTokens,
+          total_tokens: tokenUsage.totalTokens,
+          input_cost: costs.inputCost,
+          output_cost: costs.outputCost,
+          total_cost: costs.totalCost,
+          input_price_per_million: costs.inputPricePerMillion,
+          output_price_per_million: costs.outputPricePerMillion,
+          latency_ms: llmLatencyMs,
+          function_name: 'process-receipt',
+          success: !extractionError,
+          error_message: extractionError || null,
+        });
+      }
+    } catch (logError) {
+      // Log error but don't break main functionality
+      console.error('Failed to log to ai_log (non-critical):', logError);
+    }
 
     if (extractionError || !extraction) {
       console.error('Extraction error:', extractionError);
