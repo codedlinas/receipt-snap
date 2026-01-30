@@ -49,6 +49,11 @@ export async function extractSubscriptionData(
   tokenUsage: TokenUsage | null;  // Full breakdown for cost calculation
   error: string | null;
 }> {
+  // Set timeout to 45 seconds (leaves buffer before Supabase's 60s Edge Function limit)
+  const TIMEOUT_MS = 45000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
   try {
     const response = await fetch(FIREWORKS_API_URL, {
       method: 'POST',
@@ -80,7 +85,10 @@ export async function extractSubscriptionData(
         temperature: 0.1,
         response_format: { type: 'json_object' },
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -154,13 +162,26 @@ export async function extractSubscriptionData(
       error: null 
     };
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error('extractSubscriptionData error:', error);
+    
+    // Check if error is due to timeout
+    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+      return {
+        extraction: null,
+        rawResponse: null,
+        tokensUsed: null,
+        tokenUsage: null,
+        error: 'Request timeout: The AI extraction took too long. Please try again with a clearer image.'
+      };
+    }
+    
     return { 
       extraction: null, 
       rawResponse: null,
       tokensUsed: null,
       tokenUsage: null,
-      error: error.message 
+      error: error.message || 'Failed to extract subscription data'
     };
   }
 }

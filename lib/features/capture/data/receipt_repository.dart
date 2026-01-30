@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -44,20 +46,31 @@ class ReceiptRepository {
       : _client = client ?? Supabase.instance.client;
 
   /// Process a receipt image through the edge function
+  /// Timeout set to 60 seconds to match Supabase Edge Function limit
   Future<ProcessReceiptResponse> processReceipt({
     required String imageBase64,
     String? filename,
     String? mimeType,
   }) async {
     try {
-      final response = await _client.functions.invoke(
-        'process-receipt',
-        body: {
-          'image_base64': imageBase64,
-          'filename': filename ?? 'receipt.jpg',
-          'mime_type': mimeType ?? 'image/jpeg',
-        },
-      );
+      final response = await _client.functions
+          .invoke(
+            'process-receipt',
+            body: {
+              'image_base64': imageBase64,
+              'filename': filename ?? 'receipt.jpg',
+              'mime_type': mimeType ?? 'image/jpeg',
+            },
+          )
+          .timeout(
+            const Duration(seconds: 60),
+            onTimeout: () {
+              throw TimeoutException(
+                'Receipt processing timed out after 60 seconds. The AI extraction may be taking longer than expected. Please try again.',
+                const Duration(seconds: 60),
+              );
+            },
+          );
 
       if (response.status == 200 && response.data != null) {
         return ProcessReceiptResponse.fromJson(
@@ -67,6 +80,12 @@ class ReceiptRepository {
       return ProcessReceiptResponse(
         success: false,
         error: 'Server error: ${response.status}',
+      );
+    } on TimeoutException catch (e) {
+      debugPrint('Timeout processing receipt: $e');
+      return ProcessReceiptResponse(
+        success: false,
+        error: e.message ?? 'Request timed out. Please try again.',
       );
     } catch (e) {
       debugPrint('Error processing receipt: $e');

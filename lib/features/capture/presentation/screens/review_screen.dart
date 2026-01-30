@@ -222,22 +222,40 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                   color: AppColors.textSecondary,
                 ),
           ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              'This may take 15-30 seconds for complex receipts',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildErrorState() {
+    final isTimeout = _error?.toLowerCase().contains('timeout') ?? false;
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+            Icon(
+              isTimeout ? Icons.timer_off_outlined : Icons.error_outline,
+              size: 64,
+              color: AppColors.error,
+            ),
             const SizedBox(height: 24),
             Text(
-              'Extraction Failed',
+              isTimeout ? 'Request Timed Out' : 'Extraction Failed',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
@@ -248,6 +266,17 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                   ),
               textAlign: TextAlign.center,
             ),
+            if (isTimeout) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Tip: Try using a clearer image or a simpler receipt format',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: () => context.pop(),
